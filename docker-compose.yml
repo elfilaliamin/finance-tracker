@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  # ── PostgreSQL Database ──────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    container_name: finance-tracker-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+      POSTGRES_DB: finance_tracker
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./backend/sql/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d finance_tracker"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── PHP Backend (Apache + PHP) ───────────────────────────────────────
+  backend:
+    build: ./backend
+    container_name: finance-tracker-backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: finance_tracker
+      DB_USER: admin
+      DB_PASS: admin
+    ports:
+      - "8080:80"
+
+  # ── Frontend (Nginx) ─────────────────────────────────────────────────
+  frontend:
+    build: ./frontend
+    container_name: finance-tracker-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "3000:80"
+
+volumes:
+  pgdata:
